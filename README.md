@@ -31,7 +31,9 @@ Break Reminder is a small Windows desktop app that reminds you to take a 20 seco
 │   ├── include/
 │   ├── src/
 │   └── tests/
-└── .github/workflows/release-installer.yml
+└── .github/workflows/
+    ├── release-installer.yml
+    └── release-c.yml
 ```
 
 ## Requirements
@@ -104,16 +106,22 @@ c/build/break_reminder_c.exe
 
 ## GitHub release workflow
 
-The repository includes `.github/workflows/release-installer.yml`.
+The repository includes two release workflows:
+
+- `.github/workflows/release-installer.yml`
+- `.github/workflows/release-c.yml`
 
 When a GitHub release is published, the workflow:
 
 - builds the .NET app as a single-file Windows executable,
 - builds the WiX MSI installer,
 - uploads the MSI to the release assets,
-- uploads the MSI as a workflow artifact.
+- uploads the MSI as a workflow artifact,
+- builds the C executable,
+- uploads the C executable to the release assets,
+- uploads the C executable as a workflow artifact.
 
-Use release tags in `vMajor.Minor.Patch` form, such as `v1.2.3`. The workflow can also be run manually with a `Major.Minor.Patch` version value.
+Use release tags in `vMajor.Minor.Patch` form, such as `v1.2.3`. The .NET installer workflow can also be run manually with a `Major.Minor.Patch` version value. The C workflow can also be run manually without inputs.
 
 ## Generated files
 
