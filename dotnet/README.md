@@ -50,6 +50,15 @@ Installer output:
 
 - `installer/bin/x64/Release/BreakReminderDotNet10-1.0.0-x64.msi`
 
+The MSI installer:
+
+- checks for 64-bit Windows 10 or newer
+- lets the user choose the installation folder
+- installs to `C:\Program Files\20-20 Break\` by default
+- creates Start Menu and Desktop shortcuts
+- starts the app automatically when Windows launches
+- does not require a separate .NET or Windows App SDK runtime install because the publish command is self-contained
+
 ## GitHub release automation
 
 The repository includes `.github/workflows/release-installer.yml`.

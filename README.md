@@ -123,6 +123,18 @@ When a GitHub release is published, the workflow:
 
 Use release tags in `vMajor.Minor.Patch` form, such as `v1.2.3`. The .NET installer workflow can also be run manually with a `Major.Minor.Patch` version value. The C workflow can also be run manually without inputs.
 
+## Installer behavior
+
+The .NET MSI installer:
+
+- checks for 64-bit Windows 10 or newer,
+- lets the user choose the installation folder,
+- installs the app under `C:\Program Files\20-20 Break\` by default,
+- creates Start Menu and Desktop shortcuts,
+- registers the app to start when Windows launches.
+
+The release workflow publishes the .NET app with `--self-contained true` and `WindowsAppSDKSelfContained=true`, so users do not need to install the .NET runtime or Windows App SDK runtime separately.
+
 ## Generated files
 
 Generated outputs are ignored by `.gitignore` and `.ignore`, including:

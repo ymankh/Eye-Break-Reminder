@@ -8,4 +8,8 @@
     <OutputName>BreakReminderDotNet10-$(InstallerVersion)-x64</OutputName>
     <Platform>x64</Platform>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="7.0.0" />
+  </ItemGroup>
 </Project>
