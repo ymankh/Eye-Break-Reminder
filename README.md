@@ -29,8 +29,11 @@ Break Reminder is a small Windows desktop app that reminds you to take a 20 seco
 ├── c/
 │   ├── CMakeLists.txt
 │   ├── include/
-│   ├── src/
-│   └── tests/
+│   ├── tests/
+│   ├── main.c
+│   ├── resource.h
+│   ├── break-reminder.rc
+│   └── app.ico
 └── .github/workflows/
     ├── release-installer.yml
     └── release-c.yml
@@ -88,9 +91,9 @@ Installer output:
 dotnet/installer/bin/x64/Release/BreakReminderDotNet10-1.0.0-x64.msi
 ```
 
-## Build the C scaffold
+## Build the C app
 
-The C project is a starter executable that can be built independently:
+The native C app can be built independently through the `c/` CMake project:
 
 ```powershell
 cd c
@@ -101,7 +104,7 @@ cmake --build build
 Generated executable:
 
 ```text
-c/build/break_reminder_c.exe
+c/build/Release/break_reminder_c.exe
 ```
 
 ## GitHub release workflow
