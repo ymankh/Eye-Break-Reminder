@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="20-20 Break"
+    Manufacturer="BreakReminderDotNet10"
+    Version="$(var.InstallerVersion)"
+    UpgradeCode="A7A63EFC-65D3-48B2-95F1-2AC64CBF587E"
+    Scope="perMachine">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="AppIcon.ico" SourceFile="..\app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <Feature Id="MainFeature" Title="20-20 Break" Level="1">
+      <ComponentRef Id="ApplicationExecutableComponent" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="20-20 Break" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="ApplicationExecutableComponent" Guid="*">
+        <File Id="BreakReminderExe" Source="$(var.AppPublishDir)\BreakReminderDotNet10.exe" KeyPath="yes" Checksum="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

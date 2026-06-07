@@ -1,0 +1,99 @@
+name: Release installer
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Installer version in Major.Minor.Patch form
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $rawVersion = if ('${{ github.event_name }}' -eq 'release') { '${{ github.event.release.tag_name }}' } else { '${{ inputs.version }}' }
+          if ($rawVersion -notmatch '^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$') {
+            throw "Version '$rawVersion' must match vMajor.Minor.Patch or Major.Minor.Patch."
+          }
+
+          $installerVersion = "$($matches[1]).$($matches[2]).$($matches[3])"
+          $releaseTag = if ($rawVersion.StartsWith('v')) { $rawVersion } else { "v$rawVersion" }
+
+          "installer_version=$installerVersion" >> $env:GITHUB_OUTPUT
+          "release_tag=$releaseTag" >> $env:GITHUB_OUTPUT
+
+      - name: Restore app
+        run: dotnet restore dotnet/BreakReminderDotNet10.csproj
+
+      - name: Restore installer
+        run: dotnet restore dotnet/installer/BreakReminderDotNet10.Installer.wixproj
+
+      - name: Publish single-file app
+        shell: pwsh
+        run: |
+          dotnet publish dotnet/BreakReminderDotNet10.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:WindowsAppSDKSelfContained=true `
+            -p:PublishSingleFile=true `
+            -p:DebugSymbols=false `
+            -p:DebugType=None `
+            -p:Version=${{ steps.version.outputs.installer_version }} `
+            -o dotnet/artifacts/publish/win-x64-single-file
+
+      - name: Build WiX installer
+        shell: pwsh
+        env:
+          APP_PUBLISH_DIR: ${{ github.workspace }}\dotnet\artifacts\publish\win-x64-single-file
+        run: |
+          dotnet build dotnet/installer/BreakReminderDotNet10.Installer.wixproj `
+            -c Release `
+            -p:InstallerVersion=${{ steps.version.outputs.installer_version }} `
+            -p:AppPublishDir="$env:APP_PUBLISH_DIR"
+
+      - name: Locate installer
+        id: installer
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem -Path dotnet/installer/bin/x64/Release -Filter *.msi | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          if (-not $msi) {
+            throw 'No MSI was produced by the WiX build.'
+          }
+
+          "path=$($msi.FullName)" >> $env:GITHUB_OUTPUT
+          "name=$($msi.Name)" >> $env:GITHUB_OUTPUT
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.installer.outputs.name }}
+          path: ${{ steps.installer.outputs.path }}
+
+      - name: Upload installer to GitHub release
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload ${{ steps.version.outputs.release_tag }} "${{ steps.installer.outputs.path }}#${{ steps.installer.outputs.name }}" --clobber

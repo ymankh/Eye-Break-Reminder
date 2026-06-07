@@ -1,0 +1,11 @@
+<Project Sdk="WixToolset.Sdk/7.0.0">
+  <PropertyGroup>
+    <InstallerVersion Condition="'$(InstallerVersion)' == ''">1.0.0</InstallerVersion>
+    <AppPublishDir Condition="'$(AppPublishDir)' == ''">$(MSBuildProjectDirectory)\..\publish\win-x64-single-file</AppPublishDir>
+    <AcceptEula>wix7</AcceptEula>
+    <DefineConstants>InstallerVersion=$(InstallerVersion);AppPublishDir=$(AppPublishDir)</DefineConstants>
+    <OutputType>Package</OutputType>
+    <OutputName>BreakReminderDotNet10-$(InstallerVersion)-x64</OutputName>
+    <Platform>x64</Platform>
+  </PropertyGroup>
+</Project>
