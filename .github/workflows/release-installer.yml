@@ -32,68 +32,38 @@ jobs:
         shell: pwsh
         run: |
           $rawVersion = if ('${{ github.event_name }}' -eq 'release') { '${{ github.event.release.tag_name }}' } else { '${{ inputs.version }}' }
-          if ($rawVersion -notmatch '^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$') {
-            throw "Version '$rawVersion' must match vMajor.Minor.Patch or Major.Minor.Patch."
-          }
+          ./scripts/Resolve-ReleaseVersion.ps1 -Version $rawVersion
 
-          $installerVersion = "$($matches[1]).$($matches[2]).$($matches[3])"
-          $releaseTag = if ($rawVersion.StartsWith('v')) { $rawVersion } else { "v$rawVersion" }
-
-          "installer_version=$installerVersion" >> $env:GITHUB_OUTPUT
-          "release_tag=$releaseTag" >> $env:GITHUB_OUTPUT
-
-      - name: Restore app
-        run: dotnet restore dotnet/BreakReminderDotNet10.csproj
-
-      - name: Restore installer
-        run: dotnet restore dotnet/installer/BreakReminderDotNet10.Installer.wixproj
-
-      - name: Publish single-file app
+      - name: Build .NET release assets
+        id: app_release
         shell: pwsh
         run: |
-          dotnet publish dotnet/BreakReminderDotNet10.csproj `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
-            -p:WindowsAppSDKSelfContained=true `
-            -p:PublishSingleFile=true `
-            -p:DebugSymbols=false `
-            -p:DebugType=None `
-            -p:Version=${{ steps.version.outputs.installer_version }} `
-            -o dotnet/artifacts/publish/win-x64-single-file
+          ./scripts/Build-AppRelease.ps1 -InstallerVersion '${{ steps.version.outputs.installer_version }}'
 
-      - name: Build WiX installer
-        shell: pwsh
-        env:
-          APP_PUBLISH_DIR: ${{ github.workspace }}\dotnet\artifacts\publish\win-x64-single-file
-        run: |
-          dotnet build dotnet/installer/BreakReminderDotNet10.Installer.wixproj `
-            -c Release `
-            -p:InstallerVersion=${{ steps.version.outputs.installer_version }} `
-            -p:AppPublishDir="$env:APP_PUBLISH_DIR"
-
-      - name: Locate installer
-        id: installer
-        shell: pwsh
-        run: |
-          $msi = Get-ChildItem -Path dotnet/installer/bin/x64/Release -Filter *.msi | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
-          if (-not $msi) {
-            throw 'No MSI was produced by the WiX build.'
-          }
-
-          "path=$($msi.FullName)" >> $env:GITHUB_OUTPUT
-          "name=$($msi.Name)" >> $env:GITHUB_OUTPUT
-
-      - name: Upload workflow artifact
+      - name: Upload app executable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.installer.outputs.name }}
-          path: ${{ steps.installer.outputs.path }}
+          name: ${{ steps.app_release.outputs.app_exe_name }}
+          path: ${{ steps.app_release.outputs.app_exe_path }}
 
-      - name: Upload installer to GitHub release
+      - name: Upload MSI workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.app_release.outputs.msi_name }}
+          path: ${{ steps.app_release.outputs.msi_path }}
+
+      - name: Upload setup workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.app_release.outputs.setup_name }}
+          path: ${{ steps.app_release.outputs.setup_path }}
+
+      - name: Upload release assets
         if: github.event_name == 'release'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload ${{ steps.version.outputs.release_tag }} "${{ steps.installer.outputs.path }}#${{ steps.installer.outputs.name }}" --clobber
+          gh release upload ${{ steps.version.outputs.release_tag }} "${{ steps.app_release.outputs.app_exe_path }}#${{ steps.app_release.outputs.app_exe_name }}" --clobber
+          gh release upload ${{ steps.version.outputs.release_tag }} "${{ steps.app_release.outputs.msi_path }}#${{ steps.app_release.outputs.msi_name }}" --clobber
+          gh release upload ${{ steps.version.outputs.release_tag }} "${{ steps.app_release.outputs.setup_path }}#${{ steps.app_release.outputs.setup_name }}" --clobber

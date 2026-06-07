@@ -1,4 +1,4 @@
-# 20-20 Break for .NET 10
+# 20-20 Break
 
 A small native Windows break reminder built with .NET 10, WinUI 3, and Windows App SDK.
 
@@ -30,15 +30,15 @@ dotnet build
 dotnet run
 ```
 
-## Publish a single-file executable
+## Publish the app executable
 
 ```powershell
-dotnet publish -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=true -p:DebugSymbols=false -p:DebugType=None -o publish/win-x64-single-file
+dotnet publish -c Release -r win-x64 --self-contained false -p:SelfContained=false -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=true -p:DebugSymbols=false -p:DebugType=None -o publish/win-x64-single-file
 ```
 
 Published output:
 
-- `publish/win-x64-single-file/BreakReminderDotNet10.exe`
+- `publish/win-x64-single-file/20-20 Break.exe`
 
 ## Build the WiX installer locally
 
@@ -48,25 +48,49 @@ dotnet build installer/BreakReminderDotNet10.Installer.wixproj -c Release -p:Ins
 
 Installer output:
 
-- `installer/bin/x64/Release/BreakReminderDotNet10-1.0.0-x64.msi`
+- `installer/bin/x64/Release/20-20 Break-1.0.0-x64.msi`
+
+## Build the setup bootstrapper locally
+
+Build the MSI first, then run:
+
+```powershell
+dotnet build installer/BreakReminderDotNet10.Bundle.wixproj -c Release -p:InstallerVersion=1.0.0 -p:InstallerMsiPath="$PWD\installer\bin\x64\Release\20-20 Break-1.0.0-x64.msi"
+```
+
+Setup output:
+
+- `installer/bin/x64/Release/20-20 Break Setup-1.0.0-x64.exe`
+
+The same full .NET release build used by GitHub Actions can be run from the repository root:
+
+```powershell
+./scripts/Build-AppRelease.ps1 -InstallerVersion 1.0.0
+```
 
 The MSI installer:
 
 - checks for 64-bit Windows 10 or newer
+- shows feature selection
 - lets the user choose the installation folder
 - installs to `C:\Program Files\20-20 Break\` by default
-- creates Start Menu and Desktop shortcuts
-- starts the app automatically when Windows launches
-- does not require a separate .NET or Windows App SDK runtime install because the publish command is self-contained
+- lets the user choose the Start Menu shortcut
+- lets the user choose the Desktop shortcut
+- lets the user choose whether the app starts automatically when Windows launches
+
+Users should run the setup bootstrapper `.exe`. It includes and installs the .NET Desktop Runtime if missing, then launches the MSI. The app publish output still bundles the Windows App SDK payload.
 
 ## GitHub release automation
 
 The repository includes `.github/workflows/release-installer.yml`.
 
-- Publishing a GitHub release builds the single-file app
+- Publishing a GitHub release builds the app executable
 - builds the WiX MSI
-- uploads the MSI to the release assets
-- uploads the MSI as a workflow artifact
+- builds the setup bootstrapper `.exe`
+- uploads the app `.exe`, MSI, and setup `.exe` to the release assets
+- uploads the app `.exe`, MSI, and setup `.exe` as workflow artifacts
+
+The workflow delegates build work to `scripts/Resolve-ReleaseVersion.ps1` and `scripts/Build-AppRelease.ps1` so the same commands can be run manually.
 
 Use release tags in `vMajor.Minor.Patch` form, for example `v1.2.3`.
 

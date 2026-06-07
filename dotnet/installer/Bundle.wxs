@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix
+  xmlns="http://wixtoolset.org/schemas/v4/wxs"
+  xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
+  xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Bundle
+    Name="20-20 Break"
+    Manufacturer="20-20 Break"
+    Version="$(var.InstallerVersion)"
+    UpgradeCode="F9BC3FA9-0864-4ED2-9074-3D5D2E45939E">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="https://github.com/ymankh/Eye-Break-Reminder" />
+    </BootstrapperApplication>
+
+    <util:RegistrySearch
+      Id="DotNetDesktopRuntimeSearch"
+      Root="HKLM"
+      Key="SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App"
+      Value="Version"
+      Variable="DotNetDesktopRuntimeVersion"
+      Result="value" />
+
+    <Chain>
+      <ExePackage
+        Id="DotNetDesktopRuntime"
+        DisplayName=".NET Desktop Runtime"
+        SourceFile="$(var.DotNetDesktopRuntimeExePath)"
+        PerMachine="yes"
+        Permanent="yes"
+        Vital="yes"
+        DetectCondition="DotNetDesktopRuntimeVersion &gt;= v10.0.0"
+        DownloadUrl="https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe"
+        InstallArguments="/install /quiet /norestart"
+        RepairArguments="/repair /quiet /norestart"
+        UninstallArguments="/uninstall /quiet /norestart" />
+
+      <MsiPackage
+        Id="BreakReminderMsi"
+        SourceFile="$(var.InstallerMsiPath)"
+        DisplayInternalUI="yes"
+        Vital="yes" />
+    </Chain>
+  </Bundle>
+</Wix>

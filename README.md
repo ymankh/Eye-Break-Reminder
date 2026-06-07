@@ -74,7 +74,7 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfC
 Published executable:
 
 ```text
-dotnet/publish/win-x64-single-file/BreakReminderDotNet10.exe
+dotnet/publish/win-x64-single-file/20-20 Break.exe
 ```
 
 ## Build the installer
@@ -88,7 +88,13 @@ dotnet build installer/BreakReminderDotNet10.Installer.wixproj -c Release -p:Ins
 Installer output:
 
 ```text
-dotnet/installer/bin/x64/Release/BreakReminderDotNet10-1.0.0-x64.msi
+dotnet/installer/bin/x64/Release/20-20 Break-1.0.0-x64.msi
+```
+
+For the full release build, including the app executable, MSI, and setup bootstrapper, run this from the repository root:
+
+```powershell
+./scripts/Build-AppRelease.ps1 -InstallerVersion 1.0.0
 ```
 
 ## Build the C app
@@ -107,6 +113,12 @@ Generated executable:
 c/build/Release/break_reminder_c.exe
 ```
 
+The same C release build used by GitHub Actions can be run from the repository root:
+
+```powershell
+./scripts/Build-CRelease.ps1
+```
+
 ## GitHub release workflow
 
 The repository includes two release workflows:
@@ -116,10 +128,12 @@ The repository includes two release workflows:
 
 When a GitHub release is published, the workflow:
 
-- builds the .NET app as a single-file Windows executable,
+- builds the .NET app executable,
 - builds the WiX MSI installer,
-- uploads the MSI to the release assets,
-- uploads the MSI as a workflow artifact,
+- builds a setup bootstrapper `.exe`,
+- embeds the .NET Desktop Runtime in the setup bootstrapper,
+- uploads the app `.exe`, MSI, and setup `.exe` to the release assets,
+- uploads the app `.exe`, MSI, and setup `.exe` as workflow artifacts,
 - builds the C executable,
 - uploads the C executable to the release assets,
 - uploads the C executable as a workflow artifact.
@@ -131,12 +145,14 @@ Use release tags in `vMajor.Minor.Patch` form, such as `v1.2.3`. The .NET instal
 The .NET MSI installer:
 
 - checks for 64-bit Windows 10 or newer,
+- shows a feature-selection installer UI,
 - lets the user choose the installation folder,
 - installs the app under `C:\Program Files\20-20 Break\` by default,
-- creates Start Menu and Desktop shortcuts,
-- registers the app to start when Windows launches.
+- lets the user choose whether to create a Start Menu shortcut,
+- lets the user choose whether to create a Desktop shortcut,
+- lets the user choose whether the app starts when Windows launches.
 
-The release workflow publishes the .NET app with `--self-contained true` and `WindowsAppSDKSelfContained=true`, so users do not need to install the .NET runtime or Windows App SDK runtime separately.
+The release workflow publishes the .NET app as framework-dependent and builds a setup bootstrapper `.exe`. Users should run the setup `.exe`; it includes and installs the .NET Desktop Runtime if it is missing, then launches the MSI. The Windows App SDK payload is still bundled with the app publish output.
 
 ## Generated files
 

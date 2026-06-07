@@ -5,11 +5,12 @@
     <AcceptEula>wix7</AcceptEula>
     <DefineConstants>InstallerVersion=$(InstallerVersion);AppPublishDir=$(AppPublishDir)</DefineConstants>
     <OutputType>Package</OutputType>
-    <OutputName>BreakReminderDotNet10-$(InstallerVersion)-x64</OutputName>
+    <OutputName>20-20 Break-$(InstallerVersion)-x64</OutputName>
     <Platform>x64</Platform>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Bundle.wxs" />
     <PackageReference Include="WixToolset.UI.wixext" Version="7.0.0" />
   </ItemGroup>
 </Project>

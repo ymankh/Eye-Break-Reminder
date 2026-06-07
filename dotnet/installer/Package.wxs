@@ -4,7 +4,7 @@
   xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
     Name="20-20 Break"
-    Manufacturer="BreakReminderDotNet10"
+    Manufacturer="20-20 Break"
     Version="$(var.InstallerVersion)"
     UpgradeCode="A7A63EFC-65D3-48B2-95F1-2AC64CBF587E"
     Scope="perMachine">
@@ -24,12 +24,19 @@
       Condition="VersionNT &gt;= 1000"
       Message="20-20 Break requires Windows 10 or newer." />
 
-    <ui:WixUI Id="WixUI_InstallDir" />
+    <ui:WixUI Id="WixUI_FeatureTree" />
 
-    <Feature Id="MainFeature" Title="20-20 Break" Level="1">
+    <Feature Id="MainFeature" Title="20-20 Break" Level="1" ConfigurableDirectory="INSTALLFOLDER">
       <ComponentRef Id="ApplicationExecutableComponent" />
-      <ComponentRef Id="ShortcutComponent" />
-      <ComponentRef Id="StartupComponent" />
+      <Feature Id="StartMenuShortcutFeature" Title="Start Menu shortcut" Description="Create a Start Menu folder and shortcut." Level="1">
+        <ComponentRef Id="StartMenuShortcutComponent" />
+      </Feature>
+      <Feature Id="DesktopShortcutFeature" Title="Desktop shortcut" Description="Create a Desktop shortcut." Level="1">
+        <ComponentRef Id="DesktopShortcutComponent" />
+      </Feature>
+      <Feature Id="StartupFeature" Title="Start with Windows" Description="Run 20-20 Break automatically when Windows launches." Level="1">
+        <ComponentRef Id="StartupComponent" />
+      </Feature>
     </Feature>
   </Package>
 
@@ -46,14 +53,14 @@
   <Fragment>
     <DirectoryRef Id="INSTALLFOLDER">
       <Component Id="ApplicationExecutableComponent" Guid="*">
-        <File Id="BreakReminderExe" Source="$(var.AppPublishDir)\BreakReminderDotNet10.exe" KeyPath="yes" Checksum="yes" />
+        <File Id="BreakReminderExe" Source="$(var.AppPublishDir)\20-20 Break.exe" KeyPath="yes" Checksum="yes" />
       </Component>
     </DirectoryRef>
   </Fragment>
 
   <Fragment>
     <DirectoryRef Id="ApplicationProgramsFolder">
-      <Component Id="ShortcutComponent" Guid="*">
+      <Component Id="StartMenuShortcutComponent" Guid="*">
         <Shortcut
           Id="StartMenuShortcut"
           Name="20-20 Break"
@@ -61,19 +68,32 @@
           Target="[#BreakReminderExe]"
           WorkingDirectory="INSTALLFOLDER"
           Icon="AppIcon.ico" />
+        <RemoveFolder Id="RemoveApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue
+          Root="HKLM"
+          Key="Software\20-20 Break"
+          Name="StartMenuShortcutInstalled"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcutComponent" Guid="*">
         <Shortcut
           Id="DesktopShortcut"
-          Directory="DesktopFolder"
           Name="20-20 Break"
           Description="Start 20-20 Break"
           Target="[#BreakReminderExe]"
           WorkingDirectory="INSTALLFOLDER"
           Icon="AppIcon.ico" />
-        <RemoveFolder Id="RemoveApplicationProgramsFolder" On="uninstall" />
         <RegistryValue
-          Root="HKCU"
-          Key="Software\BreakReminderDotNet10"
-          Name="ShortcutsInstalled"
+          Root="HKLM"
+          Key="Software\20-20 Break"
+          Name="DesktopShortcutInstalled"
           Type="integer"
           Value="1"
           KeyPath="yes" />

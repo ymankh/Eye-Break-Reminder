@@ -17,29 +17,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure C project
-        run: cmake -S c -B c/build -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build C executable
-        run: cmake --build c/build --config Release
-
-      - name: Locate C executable
-        id: executable
+      - name: Build C release asset
+        id: c_release
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Path c/build -Recurse -Filter break_reminder_c.exe | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
-          if (-not $exe) {
-            throw 'No C executable was produced by the CMake build.'
-          }
-
-          "path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
-          "name=$($exe.Name)" >> $env:GITHUB_OUTPUT
+          ./scripts/Build-CRelease.ps1
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.executable.outputs.name }}
-          path: ${{ steps.executable.outputs.path }}
+          name: ${{ steps.c_release.outputs.exe_name }}
+          path: ${{ steps.c_release.outputs.exe_path }}
 
       - name: Upload C executable to GitHub release
         if: github.event_name == 'release'
@@ -47,4 +35,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload ${{ github.event.release.tag_name }} "${{ steps.executable.outputs.path }}#${{ steps.executable.outputs.name }}" --clobber
+          gh release upload ${{ github.event.release.tag_name }} "${{ steps.c_release.outputs.exe_path }}#${{ steps.c_release.outputs.exe_name }}" --clobber
