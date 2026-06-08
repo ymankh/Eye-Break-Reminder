@@ -6,6 +6,7 @@
 #include <shellapi.h>
 #include <commctrl.h>
 #include <wchar.h>
+#include <stdio.h>
 
 #define APP_NAME L"20-20 Break"
 #define ARRAY_COUNT(value) (sizeof(value) / sizeof((value)[0]))
@@ -48,7 +49,7 @@ static void FormatTime(int seconds, wchar_t *buffer, size_t buffer_count)
 {
     int minutes = seconds / 60;
     int remaining_seconds = seconds % 60;
-    swprintf(buffer, buffer_count, L"%02d:%02d", minutes, remaining_seconds);
+    _snwprintf(buffer, buffer_count, L"%02d:%02d", minutes, remaining_seconds);
 }
 
 static void UpdateStatusText(void)
@@ -66,7 +67,7 @@ static void UpdateStatusText(void)
     }
 
     FormatTime(g_seconds_until_break, time_text, ARRAY_COUNT(time_text));
-    swprintf(text, ARRAY_COUNT(text), L"Next break in %s", time_text);
+    _snwprintf(text, ARRAY_COUNT(text), L"Next break in %s", time_text);
     SetWindowTextW(g_title, L"Break reminder is running");
     SetWindowTextW(g_countdown, time_text);
     SetWindowTextW(g_status, text);
@@ -208,7 +209,7 @@ static void PaintBackground(HWND hwnd)
     SetBkMode(memory_dc, TRANSPARENT);
     SetTextColor(memory_dc, g_in_break ? RGB(28, 132, 87) : RGB(36, 99, 185));
     old_font = (HFONT)SelectObject(memory_dc, small_font);
-    swprintf(label, ARRAY_COUNT(label), L"%s", g_in_break ? L"BREAK IN PROGRESS" : L"BACKGROUND REMINDER");
+    _snwprintf(label, ARRAY_COUNT(label), L"%s", g_in_break ? L"BREAK IN PROGRESS" : L"BACKGROUND REMINDER");
     RECT label_rect = { 104, 48, rect.right - 42, 68 };
     DrawTextW(memory_dc, label, -1, &label_rect, DT_LEFT | DT_SINGLELINE | DT_VCENTER);
     SelectObject(memory_dc, old_font);

@@ -10,7 +10,7 @@
     UpgradeCode="F9BC3FA9-0864-4ED2-9074-3D5D2E45939E">
 
     <BootstrapperApplication>
-      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="https://github.com/ymankh/Eye-Break-Reminder" />
+      <bal:WixInternalUIBootstrapperApplication Theme="standard" />
     </BootstrapperApplication>
 
     <util:RegistrySearch
@@ -29,6 +29,7 @@
         PerMachine="yes"
         Permanent="yes"
         Vital="yes"
+        bal:PrereqPackage="yes"
         DetectCondition="DotNetDesktopRuntimeVersion &gt;= v10.0.0"
         DownloadUrl="https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe"
         InstallArguments="/install /quiet /norestart"
@@ -38,7 +39,7 @@
       <MsiPackage
         Id="BreakReminderMsi"
         SourceFile="$(var.InstallerMsiPath)"
-        DisplayInternalUI="yes"
+        bal:PrimaryPackageType="default"
         Vital="yes" />
     </Chain>
   </Bundle>

@@ -65,12 +65,12 @@
           Id="StartMenuShortcut"
           Name="20-20 Break"
           Description="Start 20-20 Break"
-          Target="[#BreakReminderExe]"
+          Target="[INSTALLFOLDER]20-20 Break.exe"
           WorkingDirectory="INSTALLFOLDER"
           Icon="AppIcon.ico" />
         <RemoveFolder Id="RemoveApplicationProgramsFolder" On="uninstall" />
         <RegistryValue
-          Root="HKLM"
+          Root="HKCU"
           Key="Software\20-20 Break"
           Name="StartMenuShortcutInstalled"
           Type="integer"
@@ -81,24 +81,24 @@
   </Fragment>
 
   <Fragment>
-    <DirectoryRef Id="DesktopFolder">
+    <StandardDirectory Id="DesktopFolder">
       <Component Id="DesktopShortcutComponent" Guid="*">
         <Shortcut
           Id="DesktopShortcut"
           Name="20-20 Break"
           Description="Start 20-20 Break"
-          Target="[#BreakReminderExe]"
+          Target="[INSTALLFOLDER]20-20 Break.exe"
           WorkingDirectory="INSTALLFOLDER"
           Icon="AppIcon.ico" />
         <RegistryValue
-          Root="HKLM"
+          Root="HKCU"
           Key="Software\20-20 Break"
           Name="DesktopShortcutInstalled"
           Type="integer"
           Value="1"
           KeyPath="yes" />
       </Component>
-    </DirectoryRef>
+    </StandardDirectory>
   </Fragment>
 
   <Fragment>
@@ -109,7 +109,7 @@
           Key="Software\Microsoft\Windows\CurrentVersion\Run"
           Name="20-20 Break"
           Type="string"
-          Value="&quot;[#BreakReminderExe]&quot;"
+          Value="&quot;[INSTALLFOLDER]20-20 Break.exe&quot;"
           KeyPath="yes" />
       </Component>
     </DirectoryRef>
