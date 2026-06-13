@@ -1,16 +1,24 @@
 <Project Sdk="WixToolset.Sdk/7.0.0">
   <PropertyGroup>
     <InstallerVersion Condition="'$(InstallerVersion)' == ''">1.0.0</InstallerVersion>
-    <AppPublishDir Condition="'$(AppPublishDir)' == ''">$(MSBuildProjectDirectory)\..\publish\win-x64-single-file</AppPublishDir>
+    <AppPublishDir Condition="'$(AppPublishDir)' == ''">$(MSBuildProjectDirectory)\..\artifacts\publish\win-x64-framework-dependent</AppPublishDir>
+    <LicenseRtfPath Condition="'$(LicenseRtfPath)' == ''">$(MSBuildProjectDirectory)\..\..\LICENSE.rtf</LicenseRtfPath>
     <AcceptEula>wix7</AcceptEula>
-    <DefineConstants>InstallerVersion=$(InstallerVersion);AppPublishDir=$(AppPublishDir)</DefineConstants>
+    <DefineConstants>InstallerVersion=$(InstallerVersion);AppPublishDir=$(AppPublishDir);LicenseRtfPath=$(LicenseRtfPath)</DefineConstants>
     <OutputType>Package</OutputType>
     <OutputName>20-20 Break-$(InstallerVersion)-x64</OutputName>
     <Platform>x64</Platform>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Bundle.wxs" />
     <PackageReference Include="WixToolset.UI.wixext" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <BindVariable Include="WixUILicenseRtf=$(LicenseRtfPath)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Bundle.wxs" />
   </ItemGroup>
 </Project>

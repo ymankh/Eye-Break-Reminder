@@ -11,7 +11,7 @@ Break Reminder is a small Windows desktop app that reminds you to take a 20 seco
 - Lets you start or finish a break manually.
 - Keeps running when the window is hidden or closed.
 - Provides tray actions for opening the window, starting a break, and exiting.
-- Supports single-file publishing and WiX MSI packaging.
+- Supports small framework-dependent WiX MSI packaging.
 
 ## Repository layout
 
@@ -68,13 +68,13 @@ The app starts in the tray. Double-click the tray icon to open the window, or ri
 From the `dotnet/` folder:
 
 ```powershell
-dotnet publish -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=true -p:DebugSymbols=false -p:DebugType=None -o publish/win-x64-single-file
+dotnet publish -c Release -r win-x64 --self-contained false -p:SelfContained=false -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false -p:DebugSymbols=false -p:DebugType=None -o artifacts/publish/win-x64-framework-dependent
 ```
 
-Published executable:
+Published app folder:
 
 ```text
-dotnet/publish/win-x64-single-file/20-20 Break.exe
+dotnet/artifacts/publish/win-x64-framework-dependent/
 ```
 
 ## Build the installer
@@ -82,7 +82,7 @@ dotnet/publish/win-x64-single-file/20-20 Break.exe
 Publish the app first, then build the WiX installer from the `dotnet/` folder:
 
 ```powershell
-dotnet build installer/BreakReminderDotNet10.Installer.wixproj -c Release -p:InstallerVersion=1.0.0 -p:AppPublishDir="$PWD\publish\win-x64-single-file"
+dotnet build installer/BreakReminderDotNet10.Installer.wixproj -c Release -p:InstallerVersion=1.0.0 -p:AppPublishDir="$PWD\artifacts\publish\win-x64-framework-dependent"
 ```
 
 Installer output:
@@ -91,7 +91,7 @@ Installer output:
 dotnet/installer/bin/x64/Release/20-20 Break-1.0.0-x64.msi
 ```
 
-For the full release build, including the app executable, MSI, and setup bootstrapper, run this from the repository root:
+For the full release build, including the app folder, MSI, setup bootstrapper, and prerequisite downloads, run this from the repository root:
 
 ```powershell
 ./scripts/Build-AppRelease.ps1 -InstallerVersion 1.0.0
@@ -128,12 +128,12 @@ The repository includes two release workflows:
 
 When a GitHub release is published, the workflow:
 
-- builds the .NET app executable,
+- builds the framework-dependent .NET app folder,
 - builds the WiX MSI installer,
 - builds a setup bootstrapper `.exe`,
-- embeds the .NET Desktop Runtime in the setup bootstrapper,
-- uploads the app `.exe`, MSI, and setup `.exe` to the release assets,
-- uploads the app `.exe`, MSI, and setup `.exe` as workflow artifacts,
+- configures the setup bootstrapper to download the .NET Desktop Runtime when missing and run the Windows App Runtime prerequisite installer,
+- uploads the MSI and setup `.exe` to the release assets,
+- uploads the MSI and setup `.exe` as workflow artifacts,
 - builds the C executable,
 - uploads the C executable to the release assets,
 - uploads the C executable as a workflow artifact.
@@ -152,7 +152,7 @@ The .NET MSI installer:
 - lets the user choose whether to create a Desktop shortcut,
 - lets the user choose whether the app starts when Windows launches.
 
-The release workflow publishes the .NET app as framework-dependent and builds a setup bootstrapper `.exe`. Users should run the setup `.exe`; it includes and installs the .NET Desktop Runtime if it is missing, then launches the MSI. The Windows App SDK payload is still bundled with the app publish output.
+The release workflow publishes the .NET app as framework-dependent and builds a setup bootstrapper `.exe`. Users should run the setup `.exe`; it downloads the .NET Desktop Runtime when missing, runs the Windows App Runtime prerequisite installer, then launches the MSI. The Windows App SDK payload is no longer bundled into the installed app folder.
 
 ## Generated files
 
@@ -160,7 +160,7 @@ Generated outputs are ignored by `.gitignore` and `.ignore`, including:
 
 - `dotnet/bin/`
 - `dotnet/obj/`
-- `dotnet/publish/`
+- `dotnet/artifacts/`
 - `dotnet/installer/bin/`
 - `dotnet/installer/obj/`
 - `c/build/`

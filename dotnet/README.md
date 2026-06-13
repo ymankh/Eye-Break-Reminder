@@ -30,20 +30,21 @@ dotnet build
 dotnet run
 ```
 
-## Publish the app executable
+## Publish the app files
 
 ```powershell
-dotnet publish -c Release -r win-x64 --self-contained false -p:SelfContained=false -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=true -p:DebugSymbols=false -p:DebugType=None -o publish/win-x64-single-file
+dotnet publish -c Release -r win-x64 --self-contained false -p:SelfContained=false -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false -p:DebugSymbols=false -p:DebugType=None -o artifacts/publish/win-x64-framework-dependent
 ```
 
 Published output:
 
-- `publish/win-x64-single-file/20-20 Break.exe`
+- `artifacts/publish/win-x64-framework-dependent/`
+- `20-20 Break.exe` plus its adjacent `.dll`, `.json`, and WinUI runtime bridge files. Keep the folder together; the executable is not a standalone app.
 
 ## Build the WiX installer locally
 
 ```powershell
-dotnet build installer/BreakReminderDotNet10.Installer.wixproj -c Release -p:InstallerVersion=1.0.0 -p:AppPublishDir="$PWD\publish\win-x64-single-file"
+dotnet build installer/BreakReminderDotNet10.Installer.wixproj -c Release -p:InstallerVersion=1.0.0 -p:AppPublishDir="$PWD\artifacts\publish\win-x64-framework-dependent"
 ```
 
 Installer output:
@@ -52,10 +53,10 @@ Installer output:
 
 ## Build the setup bootstrapper locally
 
-Build the MSI first, then run:
+Build the MSI first, make sure the prerequisite installers exist under `artifacts/prerequisites/`, then run:
 
 ```powershell
-dotnet build installer/BreakReminderDotNet10.Bundle.wixproj -c Release -p:InstallerVersion=1.0.0 -p:InstallerMsiPath="$PWD\installer\bin\x64\Release\20-20 Break-1.0.0-x64.msi"
+dotnet build installer/BreakReminderDotNet10.Bundle.wixproj -c Release -p:InstallerVersion=1.0.0 -p:InstallerMsiPath="$PWD\installer\bin\x64\Release\20-20 Break-1.0.0-x64.msi" -p:DotNetDesktopRuntimeExePath="$PWD\artifacts\prerequisites\windowsdesktop-runtime-win-x64.exe" -p:WindowsAppRuntimeExePath="$PWD\artifacts\prerequisites\windowsappruntimeinstall-x64.exe"
 ```
 
 Setup output:
@@ -78,17 +79,17 @@ The MSI installer:
 - lets the user choose the Desktop shortcut
 - lets the user choose whether the app starts automatically when Windows launches
 
-Users should run the setup bootstrapper `.exe`. It includes and installs the .NET Desktop Runtime if missing, then launches the MSI. The app publish output still bundles the Windows App SDK payload.
+Users should run the setup bootstrapper `.exe`. It downloads the .NET Desktop Runtime when missing, runs the Windows App Runtime prerequisite installer, then launches the MSI. The MSI installs a small framework-dependent app folder instead of a self-contained WinUI payload.
 
 ## GitHub release automation
 
 The repository includes `.github/workflows/release-installer.yml`.
 
-- Publishing a GitHub release builds the app executable
+- Publishing a GitHub release builds the framework-dependent app folder
 - builds the WiX MSI
 - builds the setup bootstrapper `.exe`
-- uploads the app `.exe`, MSI, and setup `.exe` to the release assets
-- uploads the app `.exe`, MSI, and setup `.exe` as workflow artifacts
+- uploads the MSI and setup `.exe` to the release assets
+- uploads the MSI and setup `.exe` as workflow artifacts
 
 The workflow delegates build work to `scripts/Resolve-ReleaseVersion.ps1` and `scripts/Build-AppRelease.ps1` so the same commands can be run manually.
 
@@ -109,5 +110,5 @@ You can also run the workflow manually with the same `Major.Minor.Patch` version
 ## Notes
 
 - The window uses native WinUI controls and the active Windows theme.
-- The published single-file executable self-extracts its required WinUI files at runtime.
+- The installer uses external .NET Desktop Runtime and Windows App Runtime prerequisites to keep the MSI and installed app folder small.
 - The WiX project uses `WixToolset.Sdk` `7.0.0` and accepts the `wix7` EULA in the installer project file.

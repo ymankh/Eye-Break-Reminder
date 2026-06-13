@@ -1,8 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Wix
-  xmlns="http://wixtoolset.org/schemas/v4/wxs"
-  xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal"
-  xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
   <Bundle
     Name="20-20 Break"
     Manufacturer="20-20 Break"
@@ -10,36 +6,40 @@
     UpgradeCode="F9BC3FA9-0864-4ED2-9074-3D5D2E45939E">
 
     <BootstrapperApplication>
-      <bal:WixInternalUIBootstrapperApplication Theme="standard" />
+      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="" />
     </BootstrapperApplication>
-
-    <util:RegistrySearch
-      Id="DotNetDesktopRuntimeSearch"
-      Root="HKLM"
-      Key="SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App"
-      Value="Version"
-      Variable="DotNetDesktopRuntimeVersion"
-      Result="value" />
 
     <Chain>
       <ExePackage
         Id="DotNetDesktopRuntime"
         DisplayName=".NET Desktop Runtime"
         SourceFile="$(var.DotNetDesktopRuntimeExePath)"
+        Compressed="no"
         PerMachine="yes"
         Permanent="yes"
         Vital="yes"
         bal:PrereqPackage="yes"
-        DetectCondition="DotNetDesktopRuntimeVersion &gt;= v10.0.0"
+        DetectCondition="0"
         DownloadUrl="https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe"
-        InstallArguments="/install /quiet /norestart"
-        RepairArguments="/repair /quiet /norestart"
-        UninstallArguments="/uninstall /quiet /norestart" />
+        InstallArguments="/install /quiet /norestart" />
+
+      <ExePackage
+        Id="WindowsAppRuntime"
+        DisplayName="Windows App Runtime"
+        SourceFile="$(var.WindowsAppRuntimeExePath)"
+        Compressed="no"
+        PerMachine="yes"
+        Permanent="yes"
+        Vital="yes"
+        bal:PrereqPackage="yes"
+        DetectCondition="0"
+        DownloadUrl="https://aka.ms/windowsappsdk/2.1/2.1.3/windowsappruntimeinstall-x64.exe"
+        InstallArguments="--quiet" />
 
       <MsiPackage
         Id="BreakReminderMsi"
         SourceFile="$(var.InstallerMsiPath)"
-        bal:PrimaryPackageType="default"
+        Compressed="yes"
         Vital="yes" />
     </Chain>
   </Bundle>

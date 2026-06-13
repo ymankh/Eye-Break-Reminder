@@ -40,12 +40,6 @@ jobs:
         run: |
           ./scripts/Build-AppRelease.ps1 -InstallerVersion '${{ steps.version.outputs.installer_version }}'
 
-      - name: Upload app executable artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.app_release.outputs.app_exe_name }}
-          path: ${{ steps.app_release.outputs.app_exe_path }}
-
       - name: Upload MSI workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -64,6 +58,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload ${{ steps.version.outputs.release_tag }} "${{ steps.app_release.outputs.app_exe_path }}#${{ steps.app_release.outputs.app_exe_name }}" --clobber
           gh release upload ${{ steps.version.outputs.release_tag }} "${{ steps.app_release.outputs.msi_path }}#${{ steps.app_release.outputs.msi_name }}" --clobber
           gh release upload ${{ steps.version.outputs.release_tag }} "${{ steps.app_release.outputs.setup_path }}#${{ steps.app_release.outputs.setup_name }}" --clobber

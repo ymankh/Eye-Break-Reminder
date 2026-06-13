@@ -2,7 +2,8 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <AssemblyName>20-20 Break</AssemblyName>
+    <AssemblyName>BreakReminderDotNet10</AssemblyName>
+    <PublishedExecutableName>20-20 Break.exe</PublishedExecutableName>
     <Product>20-20 Break</Product>
     <Description>20-20 Break reminder</Description>
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
@@ -14,13 +15,15 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <EnableMsixTooling>true</EnableMsixTooling>
-    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
     <PublishSingleFile>false</PublishSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
+    <SelfContained>false</SelfContained>
+    <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.1.3" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.Runtime" Version="2.1.3" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.1.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,11 +33,35 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Remove="publish\**\*;artifacts\**\*;TestResults\**\*" />
-    <None Remove="publish\**\*;artifacts\**\*;TestResults\**\*" />
+    <Content Remove="artifacts\**\*;installer\bin\**\*;installer\obj\**\*;publish\**\*;TestResults\**\*" />
+    <None Remove="artifacts\**\*;installer\bin\**\*;installer\obj\**\*;publish\**\*;TestResults\**\*" />
   </ItemGroup>
 
-  <Target Name="CopyWinUiPublishArtifacts" AfterTargets="Publish" Condition="'$(PublishDir)' != '' and '$(PublishSingleFile)' != 'true'">
+  <Target Name="RenamePublishedExecutable" AfterTargets="Publish" Condition="'$(PublishDir)' != ''">
+    <PropertyGroup>
+      <_PublishedAssemblyExecutable>$(PublishDir)$(AssemblyName).exe</_PublishedAssemblyExecutable>
+      <_PublishedProductExecutable>$(PublishDir)$(PublishedExecutableName)</_PublishedProductExecutable>
+      <_PublishedAssemblyPri>$(PublishDir)$(AssemblyName).pri</_PublishedAssemblyPri>
+      <_PublishedProductPri>$(PublishDir)$([System.IO.Path]::GetFileNameWithoutExtension('$(PublishedExecutableName)')).pri</_PublishedProductPri>
+    </PropertyGroup>
+
+    <Delete
+      Files="$(_PublishedProductExecutable)"
+      Condition="'$(PublishedExecutableName)' != '' and Exists('$(_PublishedProductExecutable)') and '$(_PublishedAssemblyExecutable)' != '$(_PublishedProductExecutable)'" />
+
+    <Move
+      SourceFiles="$(_PublishedAssemblyExecutable)"
+      DestinationFiles="$(_PublishedProductExecutable)"
+      Condition="'$(PublishedExecutableName)' != '' and Exists('$(_PublishedAssemblyExecutable)') and '$(_PublishedAssemblyExecutable)' != '$(_PublishedProductExecutable)'" />
+
+    <Copy
+      SourceFiles="$(_PublishedAssemblyPri)"
+      DestinationFiles="$(_PublishedProductPri)"
+      SkipUnchangedFiles="true"
+      Condition="'$(PublishedExecutableName)' != '' and Exists('$(_PublishedAssemblyPri)') and '$(_PublishedAssemblyPri)' != '$(_PublishedProductPri)'" />
+  </Target>
+
+  <Target Name="CopyWinUiPublishArtifacts" AfterTargets="Publish" Condition="'$(PublishDir)' != '' and '$(PublishSingleFile)' != 'true' and '$(WindowsAppSDKSelfContained)' == 'true'">
     <ItemGroup>
       <_WinUiCompiledArtifacts Include="$(OutDir)**\*.xbf;$(OutDir)**\*.pri" Exclude="$(PublishDir)**\*" />
       <_WinUiFrameworkAssets Include="$(OutDir)Microsoft.UI.Xaml\Assets\**\*" Exclude="$(PublishDir)**\*" />

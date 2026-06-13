@@ -3,16 +3,19 @@
     <InstallerVersion Condition="'$(InstallerVersion)' == ''">1.0.0</InstallerVersion>
     <InstallerMsiPath Condition="'$(InstallerMsiPath)' == ''">$(MSBuildProjectDirectory)\bin\x64\Release\20-20 Break-$(InstallerVersion)-x64.msi</InstallerMsiPath>
     <DotNetDesktopRuntimeExePath Condition="'$(DotNetDesktopRuntimeExePath)' == ''">$(MSBuildProjectDirectory)\..\artifacts\prerequisites\windowsdesktop-runtime-win-x64.exe</DotNetDesktopRuntimeExePath>
+    <WindowsAppRuntimeExePath Condition="'$(WindowsAppRuntimeExePath)' == ''">$(MSBuildProjectDirectory)\..\artifacts\prerequisites\windowsappruntimeinstall-x64.exe</WindowsAppRuntimeExePath>
     <AcceptEula>wix7</AcceptEula>
-    <DefineConstants>InstallerVersion=$(InstallerVersion);InstallerMsiPath=$(InstallerMsiPath);DotNetDesktopRuntimeExePath=$(DotNetDesktopRuntimeExePath)</DefineConstants>
+    <DefineConstants>InstallerVersion=$(InstallerVersion);InstallerMsiPath=$(InstallerMsiPath);DotNetDesktopRuntimeExePath=$(DotNetDesktopRuntimeExePath);WindowsAppRuntimeExePath=$(WindowsAppRuntimeExePath)</DefineConstants>
     <OutputType>Bundle</OutputType>
     <OutputName>20-20 Break Setup-$(InstallerVersion)-x64</OutputName>
     <Platform>x64</Platform>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Package.wxs" />
     <PackageReference Include="WixToolset.Bal.wixext" Version="7.0.0" />
-    <PackageReference Include="WixToolset.Util.wixext" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Package.wxs" />
   </ItemGroup>
 </Project>

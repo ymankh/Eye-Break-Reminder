@@ -1,7 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Wix
-  xmlns="http://wixtoolset.org/schemas/v4/wxs"
-  xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
     Name="20-20 Break"
     Manufacturer="20-20 Break"
@@ -9,25 +6,20 @@
     UpgradeCode="A7A63EFC-65D3-48B2-95F1-2AC64CBF587E"
     Scope="perMachine">
 
-    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of 20-20 Break is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <Icon Id="AppIcon.ico" SourceFile="..\app.ico" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
-    <Property Id="ARPNOMODIFY" Value="1" />
-    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
 
     <Launch
       Condition="VersionNT64"
       Message="20-20 Break requires 64-bit Windows." />
-    <Launch
-      Condition="VersionNT &gt;= 1000"
-      Message="20-20 Break requires Windows 10 or newer." />
 
     <ui:WixUI Id="WixUI_FeatureTree" />
 
     <Feature Id="MainFeature" Title="20-20 Break" Level="1" ConfigurableDirectory="INSTALLFOLDER">
-      <ComponentRef Id="ApplicationExecutableComponent" />
+      <ComponentGroupRef Id="ApplicationFilesComponentGroup" />
       <Feature Id="StartMenuShortcutFeature" Title="Start Menu shortcut" Description="Create a Start Menu folder and shortcut." Level="1">
         <ComponentRef Id="StartMenuShortcutComponent" />
       </Feature>
@@ -51,16 +43,17 @@
   </Fragment>
 
   <Fragment>
-    <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="ApplicationExecutableComponent" Guid="*">
-        <File Id="BreakReminderExe" Source="$(var.AppPublishDir)\20-20 Break.exe" KeyPath="yes" Checksum="yes" />
-      </Component>
-    </DirectoryRef>
+    <ComponentGroup Id="ApplicationFilesComponentGroup">
+      <Files Directory="INSTALLFOLDER" Include="$(var.AppPublishDir)\**">
+        <Exclude Files="**\*.pdb" />
+        <Exclude Files="**\*.xml" />
+      </Files>
+    </ComponentGroup>
   </Fragment>
 
   <Fragment>
     <DirectoryRef Id="ApplicationProgramsFolder">
-      <Component Id="StartMenuShortcutComponent" Guid="*">
+      <Component Id="StartMenuShortcutComponent" Guid="D2D5CCF0-6A70-4E4D-A5C1-5A10E08D0621">
         <Shortcut
           Id="StartMenuShortcut"
           Name="20-20 Break"
@@ -78,11 +71,9 @@
           KeyPath="yes" />
       </Component>
     </DirectoryRef>
-  </Fragment>
 
-  <Fragment>
     <StandardDirectory Id="DesktopFolder">
-      <Component Id="DesktopShortcutComponent" Guid="*">
+      <Component Id="DesktopShortcutComponent" Guid="3F0533D2-1D1C-4B94-92F1-2B79656D9557">
         <Shortcut
           Id="DesktopShortcut"
           Name="20-20 Break"
@@ -99,13 +90,11 @@
           KeyPath="yes" />
       </Component>
     </StandardDirectory>
-  </Fragment>
 
-  <Fragment>
     <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="StartupComponent" Guid="*">
+      <Component Id="StartupComponent" Guid="4A825D84-3DA0-4FA6-A637-95E80C0735F7">
         <RegistryValue
-          Root="HKLM"
+          Root="HKCU"
           Key="Software\Microsoft\Windows\CurrentVersion\Run"
           Name="20-20 Break"
           Type="string"
