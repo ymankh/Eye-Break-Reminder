@@ -1,18 +1,30 @@
 #define UNICODE
 #define _UNICODE
-#define _WIN32_IE 0x0500
+#define _WIN32_WINNT 0x0600
+#define _WIN32_IE 0x0600
+#define WIN32_LEAN_AND_MEAN
 
 #include <windows.h>
+#include <objbase.h>
 #include <shellapi.h>
 #include <commctrl.h>
 #include <wchar.h>
 #include <stdio.h>
 
+#ifndef WM_DPICHANGED
+#define WM_DPICHANGED 0x02E0
+#endif
+#ifndef ODS_HOTLIGHT
+#define ODS_HOTLIGHT 0x0040
+#endif
+
 #define APP_NAME L"20-20 Break"
 #define ARRAY_COUNT(value) (sizeof(value) / sizeof((value)[0]))
 #define WM_TRAYICON (WM_APP + 1)
-#define ID_TRAY_SHOW 1001
-#define ID_TRAY_EXIT 1002
+#define ID_ACTION_BUTTON 1001
+#define ID_TRAY_OPEN 1002
+#define ID_TRAY_START_BREAK 1003
+#define ID_TRAY_EXIT 1004
 #define ID_TIMER_TICK 2001
 #define IDI_APP_ICON 3001
 #define BREAK_INTERVAL_SECONDS (20 * 60)
@@ -20,29 +32,163 @@
 #define WINDOW_CLASS_NAME L"TwentyTwentyBreakWindow"
 #define INSTANCE_MUTEX_NAME L"Local\\TwentyTwentyBreakReminderSingleInstance"
 
+typedef struct AppTheme {
+    COLORREF background;
+    COLORREF surface;
+    COLORREF text;
+    COLORREF muted_text;
+    COLORREF accent;
+    COLORREF progress_track;
+    BOOL dark;
+} AppTheme;
+
+typedef BOOL (WINAPI *SetProcessDpiAwarenessContextProc)(HANDLE);
+typedef BOOL (WINAPI *SetProcessDPIAwareProc)(void);
+typedef UINT (WINAPI *GetDpiForWindowProc)(HWND);
+typedef BOOL (WINAPI *AdjustWindowRectExForDpiProc)(LPRECT, DWORD, BOOL, DWORD, UINT);
+typedef HRESULT (WINAPI *DwmSetWindowAttributeProc)(HWND, DWORD, LPCVOID, DWORD);
+
 static HWND g_hwnd;
-static HWND g_title;
-static HWND g_countdown;
-static HWND g_status;
-static HWND g_skip_button;
+static HWND g_action_button;
 static NOTIFYICONDATAW g_nid;
 static HICON g_app_icon;
 static HANDLE g_instance_mutex;
+static HFONT g_label_font;
+static HFONT g_heading_font;
+static HFONT g_countdown_font;
+static HFONT g_body_font;
+static HFONT g_button_font;
+static AppTheme g_theme;
+static UINT g_dpi = 96;
+static UINT g_taskbar_created_message;
 static int g_seconds_until_break = BREAK_INTERVAL_SECONDS;
-static int g_break_seconds_left = 0;
-static BOOL g_in_break = FALSE;
-static BOOL g_exit_requested = FALSE;
+static int g_break_seconds_left;
+static BOOL g_in_break;
+static BOOL g_exit_requested;
+static BOOL g_tray_icon_added;
 
-static HFONT CreateUiFont(int point_size, int weight)
+static int Scale(int value)
+{
+    return MulDiv(value, (int)g_dpi, 96);
+}
+
+static UINT WindowDpi(HWND hwnd)
+{
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    GetDpiForWindowProc get_dpi = (GetDpiForWindowProc)GetProcAddress(user32, "GetDpiForWindow");
+    if (get_dpi) {
+        return get_dpi(hwnd);
+    }
+    {
+        HDC hdc = GetDC(hwnd);
+        UINT dpi = (UINT)GetDeviceCaps(hdc, LOGPIXELSX);
+        ReleaseDC(hwnd, hdc);
+        return dpi ? dpi : 96;
+    }
+}
+
+static UINT SystemDpi(void)
 {
     HDC hdc = GetDC(NULL);
-    int height = -MulDiv(point_size, GetDeviceCaps(hdc, LOGPIXELSY), 72);
+    UINT dpi = (UINT)GetDeviceCaps(hdc, LOGPIXELSX);
     ReleaseDC(NULL, hdc);
+    return dpi ? dpi : 96;
+}
 
+static void EnableBestDpiAwareness(void)
+{
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    SetProcessDpiAwarenessContextProc set_context =
+        (SetProcessDpiAwarenessContextProc)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+    if (set_context) {
+        set_context((HANDLE)-4);
+    } else {
+        SetProcessDPIAwareProc set_aware =
+            (SetProcessDPIAwareProc)GetProcAddress(user32, "SetProcessDPIAware");
+        if (set_aware) {
+            set_aware();
+        }
+    }
+}
+
+static void AdjustInitialWindowRect(RECT *rect, DWORD style, UINT dpi)
+{
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    AdjustWindowRectExForDpiProc adjust_for_dpi =
+        (AdjustWindowRectExForDpiProc)GetProcAddress(user32, "AdjustWindowRectExForDpi");
+    if (adjust_for_dpi) {
+        adjust_for_dpi(rect, style, FALSE, 0, dpi);
+    } else {
+        AdjustWindowRectEx(rect, style, FALSE, 0);
+    }
+}
+
+static COLORREF Color(BYTE red, BYTE green, BYTE blue)
+{
+    return RGB(red, green, blue);
+}
+
+static BOOL IsLightTheme(void)
+{
+    HKEY key;
+    DWORD value = 1;
+    DWORD size = sizeof(value);
+    if (RegOpenKeyExW(
+        HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        0,
+        KEY_QUERY_VALUE,
+        &key) == ERROR_SUCCESS) {
+        RegQueryValueExW(key, L"AppsUseLightTheme", NULL, NULL, (LPBYTE)&value, &size);
+        RegCloseKey(key);
+    }
+    return value != 0;
+}
+
+static void LoadTheme(void)
+{
+    if (IsLightTheme()) {
+        g_theme = (AppTheme) {
+            Color(247, 248, 250), Color(255, 255, 255), Color(28, 32, 38),
+            Color(102, 109, 120), Color(37, 99, 235), Color(229, 232, 238), FALSE
+        };
+    } else {
+        g_theme = (AppTheme) {
+            Color(24, 26, 30), Color(32, 35, 40), Color(242, 244, 247),
+            Color(166, 172, 181), Color(96, 140, 255), Color(58, 62, 69), TRUE
+        };
+    }
+}
+
+static HFONT CreateUiFont(int point_size, int weight, const wchar_t *face)
+{
+    int height = -MulDiv(point_size, (int)g_dpi, 72);
     return CreateFontW(
         height, 0, 0, 0, weight, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
         OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-        DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+        DEFAULT_PITCH | FF_SWISS, face);
+}
+
+static void DeleteFonts(void)
+{
+    DeleteObject(g_label_font);
+    DeleteObject(g_heading_font);
+    DeleteObject(g_countdown_font);
+    DeleteObject(g_body_font);
+    DeleteObject(g_button_font);
+}
+
+static void CreateFonts(void)
+{
+    DeleteFonts();
+    g_label_font = CreateUiFont(9, FW_SEMIBOLD, L"Segoe UI Variable Text");
+    g_heading_font = CreateUiFont(20, FW_SEMIBOLD, L"Segoe UI Variable Display");
+    g_countdown_font = CreateUiFont(52, FW_SEMIBOLD, L"Segoe UI Variable Display");
+    g_body_font = CreateUiFont(10, FW_NORMAL, L"Segoe UI Variable Text");
+    g_button_font = CreateUiFont(10, FW_SEMIBOLD, L"Segoe UI");
+    if (g_action_button) {
+        SendMessageW(g_action_button, WM_SETFONT, (WPARAM)g_button_font, TRUE);
+    }
 }
 
 static void FormatTime(int seconds, wchar_t *buffer, size_t buffer_count)
@@ -50,32 +196,19 @@ static void FormatTime(int seconds, wchar_t *buffer, size_t buffer_count)
     int minutes = seconds / 60;
     int remaining_seconds = seconds % 60;
     _snwprintf(buffer, buffer_count, L"%02d:%02d", minutes, remaining_seconds);
+    buffer[buffer_count - 1] = L'\0';
 }
 
-static void UpdateStatusText(void)
+static void UpdateActionText(void)
 {
-    wchar_t text[128];
-    wchar_t time_text[16];
-
-    if (g_in_break) {
-        FormatTime(g_break_seconds_left, time_text, ARRAY_COUNT(time_text));
-        SetWindowTextW(g_title, L"Time for a 20 second break");
-        SetWindowTextW(g_countdown, time_text);
-        SetWindowTextW(g_status, L"Look away, stretch, and relax your eyes.");
-        SetWindowTextW(g_skip_button, L"Finish Break");
-        return;
-    }
-
-    FormatTime(g_seconds_until_break, time_text, ARRAY_COUNT(time_text));
-    _snwprintf(text, ARRAY_COUNT(text), L"Next break in %s", time_text);
-    SetWindowTextW(g_title, L"Break reminder is running");
-    SetWindowTextW(g_countdown, time_text);
-    SetWindowTextW(g_status, text);
-    SetWindowTextW(g_skip_button, L"Start Break Now");
+    SetWindowTextW(g_action_button, g_in_break ? L"End break" : L"Take a break");
 }
 
 static void ShowTrayNotification(const wchar_t *title, const wchar_t *message)
 {
+    if (!g_tray_icon_added) {
+        return;
+    }
     g_nid.uFlags = NIF_INFO;
     wcsncpy(g_nid.szInfoTitle, title, ARRAY_COUNT(g_nid.szInfoTitle) - 1);
     wcsncpy(g_nid.szInfo, message, ARRAY_COUNT(g_nid.szInfo) - 1);
@@ -87,18 +220,16 @@ static void ShowTrayNotification(const wchar_t *title, const wchar_t *message)
 
 static void ShowReminderWindow(void)
 {
-    ShowWindow(g_hwnd, SW_SHOWNORMAL);
+    ShowWindow(g_hwnd, SW_RESTORE);
     SetForegroundWindow(g_hwnd);
-    BringWindowToTop(g_hwnd);
 }
 
 static void ShowExistingInstance(void)
 {
     HWND existing = FindWindowW(WINDOW_CLASS_NAME, NULL);
     if (existing) {
-        ShowWindow(existing, SW_SHOWNORMAL);
+        ShowWindow(existing, SW_RESTORE);
         SetForegroundWindow(existing);
-        BringWindowToTop(existing);
     }
 }
 
@@ -106,8 +237,8 @@ static void StartBreak(void)
 {
     g_in_break = TRUE;
     g_break_seconds_left = BREAK_DURATION_SECONDS;
-    UpdateStatusText();
-    ShowTrayNotification(APP_NAME, L"Take a 20 second break now.");
+    UpdateActionText();
+    ShowTrayNotification(APP_NAME, L"Look away for 20 seconds and let your eyes relax.");
     InvalidateRect(g_hwnd, NULL, FALSE);
     ShowReminderWindow();
 }
@@ -117,12 +248,12 @@ static void FinishBreak(void)
     g_in_break = FALSE;
     g_break_seconds_left = 0;
     g_seconds_until_break = BREAK_INTERVAL_SECONDS;
-    UpdateStatusText();
+    UpdateActionText();
     InvalidateRect(g_hwnd, NULL, FALSE);
     ShowWindow(g_hwnd, SW_HIDE);
 }
 
-static void AddTrayIcon(HWND hwnd)
+static BOOL AddTrayIcon(HWND hwnd)
 {
     ZeroMemory(&g_nid, sizeof(g_nid));
     g_nid.cbSize = sizeof(g_nid);
@@ -133,20 +264,29 @@ static void AddTrayIcon(HWND hwnd)
     g_nid.hIcon = g_app_icon;
     wcsncpy(g_nid.szTip, APP_NAME, ARRAY_COUNT(g_nid.szTip) - 1);
     g_nid.szTip[ARRAY_COUNT(g_nid.szTip) - 1] = L'\0';
-    Shell_NotifyIconW(NIM_ADD, &g_nid);
+    g_tray_icon_added = Shell_NotifyIconW(NIM_ADD, &g_nid);
+    if (g_tray_icon_added) {
+        g_nid.uVersion = NOTIFYICON_VERSION_4;
+        Shell_NotifyIconW(NIM_SETVERSION, &g_nid);
+    }
+    return g_tray_icon_added;
 }
 
 static void RemoveTrayIcon(void)
 {
-    Shell_NotifyIconW(NIM_DELETE, &g_nid);
+    if (g_tray_icon_added) {
+        Shell_NotifyIconW(NIM_DELETE, &g_nid);
+        g_tray_icon_added = FALSE;
+    }
 }
 
 static void ShowTrayMenu(HWND hwnd)
 {
     POINT cursor;
     HMENU menu = CreatePopupMenu();
-
-    AppendMenuW(menu, MF_STRING, ID_TRAY_SHOW, L"Open");
+    AppendMenuW(menu, MF_STRING | MF_DEFAULT, ID_TRAY_OPEN, L"Open");
+    AppendMenuW(menu, MF_STRING, ID_TRAY_START_BREAK, L"Start break now");
+    AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(menu, MF_STRING, ID_TRAY_EXIT, L"Exit");
     GetCursorPos(&cursor);
     SetForegroundWindow(hwnd);
@@ -154,178 +294,271 @@ static void ShowTrayMenu(HWND hwnd)
     DestroyMenu(menu);
 }
 
+static void SetTextStyle(HDC hdc, HFONT font, COLORREF color)
+{
+    SelectObject(hdc, font);
+    SetTextColor(hdc, color);
+    SetBkMode(hdc, TRANSPARENT);
+}
+
+static void DrawTextLine(HDC hdc, const wchar_t *text, RECT rect, UINT format)
+{
+    DrawTextW(hdc, text, -1, &rect, format | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+}
+
+static void LayoutControls(HWND hwnd)
+{
+    RECT client;
+    GetClientRect(hwnd, &client);
+    MoveWindow(
+        g_action_button,
+        client.right - Scale(160),
+        client.bottom - Scale(62),
+        Scale(132),
+        Scale(36),
+        TRUE);
+}
+
 static void PaintBackground(HWND hwnd)
 {
     PAINTSTRUCT ps;
-    RECT rect;
+    RECT client;
     HDC hdc = BeginPaint(hwnd, &ps);
-    HDC memory_dc = CreateCompatibleDC(hdc);
-    HBITMAP memory_bitmap;
+    HDC buffer_dc;
+    HBITMAP buffer_bitmap;
     HBITMAP old_bitmap;
-    HBRUSH background = CreateSolidBrush(RGB(245, 247, 250));
-    HBRUSH panel = CreateSolidBrush(RGB(255, 255, 255));
-    HBRUSH accent = CreateSolidBrush(g_in_break ? RGB(28, 132, 87) : RGB(36, 99, 185));
-    HBRUSH icon_fill = CreateSolidBrush(g_in_break ? RGB(228, 247, 238) : RGB(230, 239, 255));
-    HBRUSH progress_fill = CreateSolidBrush(g_in_break ? RGB(28, 132, 87) : RGB(36, 99, 185));
-    HBRUSH progress_track = CreateSolidBrush(RGB(228, 233, 239));
-    HPEN border = CreatePen(PS_SOLID, 1, RGB(215, 222, 230));
-    HPEN accent_pen = CreatePen(PS_SOLID, 4, g_in_break ? RGB(28, 132, 87) : RGB(36, 99, 185));
-    HFONT small_font = CreateUiFont(9, FW_SEMIBOLD);
-    HFONT old_font;
-    wchar_t label[64];
-    int progress_width;
+    HBRUSH brush;
+    HBRUSH old_brush;
+    HPEN old_pen;
+    wchar_t time_text[16];
+    RECT rect;
     int total_seconds = g_in_break ? BREAK_DURATION_SECONDS : BREAK_INTERVAL_SECONDS;
     int current_seconds = g_in_break ? g_break_seconds_left : g_seconds_until_break;
+    int track_width;
+    int progress_width;
 
-    GetClientRect(hwnd, &rect);
-    memory_bitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
-    old_bitmap = (HBITMAP)SelectObject(memory_dc, memory_bitmap);
+    GetClientRect(hwnd, &client);
+    buffer_dc = CreateCompatibleDC(hdc);
+    buffer_bitmap = CreateCompatibleBitmap(hdc, client.right, client.bottom);
+    old_bitmap = (HBITMAP)SelectObject(buffer_dc, buffer_bitmap);
 
-    FillRect(memory_dc, &rect, background);
+    brush = CreateSolidBrush(g_theme.background);
+    FillRect(buffer_dc, &client, brush);
+    DeleteObject(brush);
 
-    RECT panel_rect = { 18, 18, rect.right - 18, rect.bottom - 18 };
-    SelectObject(memory_dc, panel);
-    SelectObject(memory_dc, border);
-    RoundRect(memory_dc, panel_rect.left, panel_rect.top, panel_rect.right, panel_rect.bottom, 14, 14);
+    SetTextStyle(buffer_dc, g_label_font, g_theme.accent);
+    rect = (RECT) { Scale(28), Scale(18), client.right - Scale(28), Scale(44) };
+    DrawTextLine(buffer_dc, g_in_break ? L"BREAK IN PROGRESS" : L"NEXT EYE BREAK", rect, DT_LEFT);
 
-    RECT accent_rect = { panel_rect.left, panel_rect.top, panel_rect.right, panel_rect.top + 7 };
-    FillRect(memory_dc, &accent_rect, accent);
+    SetTextStyle(buffer_dc, g_heading_font, g_theme.text);
+    rect = (RECT) { Scale(28), Scale(44), client.right - Scale(28), Scale(80) };
+    DrawTextLine(buffer_dc, g_in_break ? L"Rest your eyes" : L"Look away in", rect, DT_LEFT);
 
-    SelectObject(memory_dc, icon_fill);
-    SelectObject(memory_dc, accent_pen);
-    Ellipse(memory_dc, 42, 42, 92, 92);
-    DrawIconEx(memory_dc, 55, 55, g_app_icon, 24, 24, 0, NULL, DI_NORMAL);
+    FormatTime(current_seconds, time_text, ARRAY_COUNT(time_text));
+    SetTextStyle(buffer_dc, g_countdown_font, g_theme.text);
+    rect = (RECT) { Scale(24), Scale(78), client.right - Scale(24), Scale(156) };
+    DrawTextLine(buffer_dc, time_text, rect, DT_LEFT);
 
-    RECT progress_track_rect = { 50, 223, rect.right - 50, 231 };
-    FillRect(memory_dc, &progress_track_rect, progress_track);
-    progress_width = (progress_track_rect.right - progress_track_rect.left) * current_seconds / total_seconds;
-    if (progress_width < 0) {
-        progress_width = 0;
+    SetTextStyle(buffer_dc, g_body_font, g_theme.muted_text);
+    rect = (RECT) { Scale(28), Scale(156), client.right - Scale(28), Scale(190) };
+    DrawTextLine(
+        buffer_dc,
+        g_in_break ? L"Focus on something distant and breathe normally." : L"Look 20 feet away for 20 seconds every 20 minutes.",
+        rect,
+        DT_LEFT);
+
+    rect = (RECT) { Scale(28), Scale(205), client.right - Scale(28), Scale(211) };
+    track_width = rect.right - rect.left;
+    progress_width = total_seconds > 0 ? track_width * current_seconds / total_seconds : 0;
+    brush = CreateSolidBrush(g_theme.progress_track);
+    old_brush = (HBRUSH)SelectObject(buffer_dc, brush);
+    old_pen = (HPEN)SelectObject(buffer_dc, GetStockObject(NULL_PEN));
+    RoundRect(buffer_dc, rect.left, rect.top, rect.right, rect.bottom, Scale(6), Scale(6));
+    SelectObject(buffer_dc, old_brush);
+    DeleteObject(brush);
+    if (progress_width > 0) {
+        brush = CreateSolidBrush(g_theme.accent);
+        old_brush = (HBRUSH)SelectObject(buffer_dc, brush);
+        RoundRect(buffer_dc, rect.left, rect.top, rect.left + progress_width, rect.bottom, Scale(6), Scale(6));
+        SelectObject(buffer_dc, old_brush);
+        DeleteObject(brush);
     }
-    RECT progress_fill_rect = progress_track_rect;
-    progress_fill_rect.right = progress_track_rect.left + progress_width;
-    FillRect(memory_dc, &progress_fill_rect, progress_fill);
+    SelectObject(buffer_dc, old_pen);
 
-    SetBkMode(memory_dc, TRANSPARENT);
-    SetTextColor(memory_dc, g_in_break ? RGB(28, 132, 87) : RGB(36, 99, 185));
-    old_font = (HFONT)SelectObject(memory_dc, small_font);
-    _snwprintf(label, ARRAY_COUNT(label), L"%s", g_in_break ? L"BREAK IN PROGRESS" : L"BACKGROUND REMINDER");
-    RECT label_rect = { 104, 48, rect.right - 42, 68 };
-    DrawTextW(memory_dc, label, -1, &label_rect, DT_LEFT | DT_SINGLELINE | DT_VCENTER);
-    SelectObject(memory_dc, old_font);
-
-    BitBlt(hdc, 0, 0, rect.right, rect.bottom, memory_dc, 0, 0, SRCCOPY);
-
-    DeleteObject(background);
-    DeleteObject(panel);
-    DeleteObject(accent);
-    DeleteObject(icon_fill);
-    DeleteObject(progress_fill);
-    DeleteObject(progress_track);
-    DeleteObject(border);
-    DeleteObject(accent_pen);
-    DeleteObject(small_font);
-    SelectObject(memory_dc, old_bitmap);
-    DeleteObject(memory_bitmap);
-    DeleteDC(memory_dc);
+    BitBlt(hdc, 0, 0, client.right, client.bottom, buffer_dc, 0, 0, SRCCOPY);
+    SelectObject(buffer_dc, old_bitmap);
+    DeleteObject(buffer_bitmap);
+    DeleteDC(buffer_dc);
     EndPaint(hwnd, &ps);
+}
+
+static void DrawActionButton(const DRAWITEMSTRUCT *draw)
+{
+    RECT rect = draw->rcItem;
+    wchar_t text[64];
+    COLORREF fill = g_theme.surface;
+    HBRUSH brush;
+    HBRUSH old_brush;
+    HPEN pen;
+    HPEN old_pen;
+    HFONT old_font;
+
+    if (draw->itemState & ODS_SELECTED) {
+        fill = g_theme.progress_track;
+    } else if (draw->itemState & ODS_HOTLIGHT) {
+        fill = g_theme.progress_track;
+    }
+
+    brush = CreateSolidBrush(g_theme.background);
+    FillRect(draw->hDC, &rect, brush);
+    DeleteObject(brush);
+
+    brush = CreateSolidBrush(fill);
+    pen = CreatePen(PS_SOLID, (draw->itemState & ODS_FOCUS) ? Scale(2) : 1, g_theme.accent);
+    old_brush = (HBRUSH)SelectObject(draw->hDC, brush);
+    old_pen = (HPEN)SelectObject(draw->hDC, pen);
+    RoundRect(draw->hDC, rect.left, rect.top, rect.right, rect.bottom, Scale(8), Scale(8));
+    SelectObject(draw->hDC, old_brush);
+    SelectObject(draw->hDC, old_pen);
+    DeleteObject(pen);
+    DeleteObject(brush);
+
+    GetWindowTextW(draw->hwndItem, text, ARRAY_COUNT(text));
+    old_font = (HFONT)SelectObject(draw->hDC, g_button_font);
+    SetTextColor(draw->hDC, g_theme.accent);
+    SetBkMode(draw->hDC, TRANSPARENT);
+    DrawTextLine(draw->hDC, text, rect, DT_CENTER);
+    SelectObject(draw->hDC, old_font);
+
+}
+
+static void RefreshAppearance(HWND hwnd)
+{
+    BOOL use_dark_mode;
+    HMODULE dwmapi;
+    DwmSetWindowAttributeProc set_window_attribute;
+    LoadTheme();
+    use_dark_mode = g_theme.dark;
+    dwmapi = LoadLibraryW(L"dwmapi.dll");
+    if (dwmapi) {
+        set_window_attribute =
+            (DwmSetWindowAttributeProc)GetProcAddress(dwmapi, "DwmSetWindowAttribute");
+        if (set_window_attribute) {
+            set_window_attribute(hwnd, 20, &use_dark_mode, sizeof(use_dark_mode));
+        }
+        FreeLibrary(dwmapi);
+    }
+    InvalidateRect(hwnd, NULL, TRUE);
+    InvalidateRect(g_action_button, NULL, TRUE);
 }
 
 static LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-    switch (msg) {
-    case WM_CREATE: {
-        HFONT title_font = CreateUiFont(18, FW_SEMIBOLD);
-        HFONT timer_font = CreateUiFont(48, FW_BOLD);
-        HFONT body_font = CreateUiFont(10, FW_NORMAL);
-
-        g_title = CreateWindowW(L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_CENTER,
-            104, 69, 270, 32, hwnd, NULL, NULL, NULL);
-        g_countdown = CreateWindowW(L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_CENTER,
-            38, 104, 354, 76, hwnd, NULL, NULL, NULL);
-        g_status = CreateWindowW(L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_CENTER,
-            44, 181, 342, 28, hwnd, NULL, NULL, NULL);
-        g_skip_button = CreateWindowW(L"BUTTON", L"", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-            132, 248, 166, 36, hwnd, (HMENU)ID_TRAY_SHOW, NULL, NULL);
-
-        SendMessageW(g_title, WM_SETFONT, (WPARAM)title_font, TRUE);
-        SendMessageW(g_countdown, WM_SETFONT, (WPARAM)timer_font, TRUE);
-        SendMessageW(g_status, WM_SETFONT, (WPARAM)body_font, TRUE);
-        SendMessageW(g_skip_button, WM_SETFONT, (WPARAM)body_font, TRUE);
-
+    if (g_taskbar_created_message && msg == g_taskbar_created_message) {
+        g_tray_icon_added = FALSE;
         AddTrayIcon(hwnd);
-        SetTimer(hwnd, ID_TIMER_TICK, 1000, NULL);
-        UpdateStatusText();
         return 0;
     }
-    case WM_COMMAND:
-        if (LOWORD(wparam) == ID_TRAY_EXIT) {
-            g_exit_requested = TRUE;
-            DestroyWindow(hwnd);
-            return 0;
+
+    switch (msg) {
+    case WM_CREATE:
+        g_dpi = WindowDpi(hwnd);
+        LoadTheme();
+        CreateFonts();
+        g_action_button = CreateWindowW(
+            L"BUTTON", L"Take a break",
+            WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW,
+            0, 0, 0, 0, hwnd, (HMENU)ID_ACTION_BUTTON, NULL, NULL);
+        SendMessageW(g_action_button, WM_SETFONT, (WPARAM)g_button_font, TRUE);
+        LayoutControls(hwnd);
+        AddTrayIcon(hwnd);
+        SetTimer(hwnd, ID_TIMER_TICK, 1000, NULL);
+        RefreshAppearance(hwnd);
+        return 0;
+    case WM_SIZE:
+        LayoutControls(hwnd);
+        return 0;
+    case WM_DPICHANGED: {
+        RECT *suggested = (RECT *)lparam;
+        g_dpi = HIWORD(wparam);
+        CreateFonts();
+        SetWindowPos(
+            hwnd, NULL, suggested->left, suggested->top,
+            suggested->right - suggested->left, suggested->bottom - suggested->top,
+            SWP_NOZORDER | SWP_NOACTIVATE);
+        LayoutControls(hwnd);
+        InvalidateRect(hwnd, NULL, TRUE);
+        return 0;
+    }
+    case WM_SETTINGCHANGE:
+        RefreshAppearance(hwnd);
+        return 0;
+    case WM_DRAWITEM:
+        if (wparam == ID_ACTION_BUTTON) {
+            DrawActionButton((const DRAWITEMSTRUCT *)lparam);
+            return TRUE;
         }
-        if (LOWORD(wparam) == ID_TRAY_SHOW) {
+        break;
+    case WM_COMMAND:
+        switch (LOWORD(wparam)) {
+        case ID_ACTION_BUTTON:
             if (g_in_break) {
                 FinishBreak();
             } else {
                 StartBreak();
             }
             return 0;
+        case ID_TRAY_OPEN:
+            ShowReminderWindow();
+            return 0;
+        case ID_TRAY_START_BREAK:
+            StartBreak();
+            return 0;
+        case ID_TRAY_EXIT:
+            g_exit_requested = TRUE;
+            DestroyWindow(hwnd);
+            return 0;
         }
         break;
     case WM_TIMER:
         if (wparam == ID_TIMER_TICK) {
             if (g_in_break) {
-                g_break_seconds_left--;
-                if (g_break_seconds_left <= 0) {
+                if (--g_break_seconds_left <= 0) {
                     FinishBreak();
-                } else {
-                    UpdateStatusText();
                 }
-            } else {
-                g_seconds_until_break--;
-                if (g_seconds_until_break <= 0) {
-                    StartBreak();
-                } else {
-                    UpdateStatusText();
-                }
+            } else if (--g_seconds_until_break <= 0) {
+                StartBreak();
             }
             InvalidateRect(hwnd, NULL, FALSE);
             return 0;
         }
         break;
     case WM_TRAYICON:
-        if (lparam == WM_LBUTTONDBLCLK) {
+        if (LOWORD(lparam) == WM_LBUTTONDBLCLK) {
             ShowReminderWindow();
             return 0;
         }
-        if (lparam == WM_RBUTTONUP) {
+        if (LOWORD(lparam) == WM_CONTEXTMENU || LOWORD(lparam) == WM_RBUTTONUP) {
             ShowTrayMenu(hwnd);
             return 0;
         }
         break;
     case WM_CLOSE:
-        if (g_exit_requested) {
+        if (g_exit_requested || !g_tray_icon_added) {
             DestroyWindow(hwnd);
         } else {
             ShowWindow(hwnd, SW_HIDE);
         }
         return 0;
+    case WM_ERASEBKGND:
+        return 1;
     case WM_PAINT:
         PaintBackground(hwnd);
         return 0;
-    case WM_CTLCOLORSTATIC: {
-        HDC hdc = (HDC)wparam;
-        SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, RGB(23, 32, 42));
-        return (LRESULT)GetStockObject(NULL_BRUSH);
-    }
     case WM_DESTROY:
         KillTimer(hwnd, ID_TIMER_TICK);
         RemoveTrayIcon();
-        if (g_app_icon) {
-            DestroyIcon(g_app_icon);
-        }
+        DeleteFonts();
         if (g_instance_mutex) {
             CloseHandle(g_instance_mutex);
         }
@@ -337,13 +570,23 @@ static LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous_instance, LPSTR command_line, int show_command)
 {
+    WNDCLASSW wc;
+    MSG msg;
+    RECT window_rect;
+    UINT initial_dpi;
+    int message_result;
+
     (void)previous_instance;
     (void)command_line;
     (void)show_command;
 
-    WNDCLASSW wc;
-    MSG msg;
-
+    EnableBestDpiAwareness();
+    initial_dpi = SystemDpi();
+    window_rect = (RECT) {
+        0, 0,
+        MulDiv(440, (int)initial_dpi, 96),
+        MulDiv(310, (int)initial_dpi, 96)
+    };
     g_instance_mutex = CreateMutexW(NULL, TRUE, INSTANCE_MUTEX_NAME);
     if (!g_instance_mutex) {
         return 1;
@@ -356,39 +599,48 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous_instance, LPSTR comman
 
     g_app_icon = LoadIconW(instance, MAKEINTRESOURCEW(IDI_APP_ICON));
     if (!g_app_icon) {
-        g_app_icon = LoadIcon(NULL, IDI_INFORMATION);
+        g_app_icon = LoadIconW(NULL, IDI_INFORMATION);
     }
+    g_taskbar_created_message = RegisterWindowMessageW(L"TaskbarCreated");
 
     ZeroMemory(&wc, sizeof(wc));
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = instance;
     wc.lpszClassName = WINDOW_CLASS_NAME;
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
     wc.hIcon = g_app_icon;
 
     if (!RegisterClassW(&wc)) {
         return 1;
     }
 
+    AdjustInitialWindowRect(
+        &window_rect,
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+        initial_dpi);
     g_hwnd = CreateWindowExW(
-        WS_EX_TOPMOST,
+        0,
         wc.lpszClassName,
         APP_NAME,
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, 430, 345,
+        CW_USEDEFAULT, CW_USEDEFAULT,
+        window_rect.right - window_rect.left,
+        window_rect.bottom - window_rect.top,
         NULL, NULL, instance, NULL);
 
     if (!g_hwnd) {
         return 1;
     }
 
-    ShowWindow(g_hwnd, SW_HIDE);
+    ShowWindow(g_hwnd, SW_SHOWNORMAL);
+    UpdateWindow(g_hwnd);
 
-    while (GetMessageW(&msg, NULL, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
+    while ((message_result = GetMessageW(&msg, NULL, 0, 0)) > 0) {
+        if (!IsDialogMessageW(g_hwnd, &msg)) {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
     }
 
-    return (int)msg.wParam;
+    return message_result == -1 ? 1 : (int)msg.wParam;
 }

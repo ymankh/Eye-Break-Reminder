@@ -83,6 +83,9 @@ $exe = Get-ChildItem -Path $buildDir -Recurse -Filter break_reminder_c.exe |
 if (-not $exe) {
     throw 'No C executable was produced by the CMake build.'
 }
+if ($exe.Length -gt 1MB) {
+    throw "The standalone C executable exceeds the 1 MB limit: $($exe.Length) bytes."
+}
 
 if ($env:GITHUB_OUTPUT) {
     "exe_path=$($exe.FullName)" >> $env:GITHUB_OUTPUT
@@ -92,4 +95,5 @@ if ($env:GITHUB_OUTPUT) {
 [pscustomobject]@{
     ExePath = $exe.FullName
     ExeName = $exe.Name
+    ExeBytes = $exe.Length
 }

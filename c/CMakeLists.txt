@@ -22,6 +22,10 @@ else()
     target_compile_options(break_reminder_c PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+if(MINGW)
+    target_link_options(break_reminder_c PRIVATE $<$<CONFIG:Release>:-s>)
+endif()
+
 if(WIN32)
-    target_link_libraries(break_reminder_c PRIVATE comctl32 shell32 gdi32)
+    target_link_libraries(break_reminder_c PRIVATE comctl32 shell32 gdi32 advapi32)
 endif()

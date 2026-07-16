@@ -5,7 +5,7 @@ Break Reminder is a small Windows desktop app that reminds you to take a 20 seco
 ## Features
 
 - Runs as a single-instance Windows app.
-- Starts hidden in the system tray.
+- Can keep running quietly in the system tray.
 - Shows a reminder every 20 minutes.
 - Runs a 20 second break countdown.
 - Lets you start or finish a break manually.
@@ -106,7 +106,7 @@ For the full release build, including the app folder, MSI, setup bootstrapper, a
 
 ## Build the C app
 
-The native C app can be built independently through the `c/` CMake project:
+The native C app is a Win32 reminder with a minimal, DPI-aware interface that follows the Windows light or dark theme. It builds as one small executable with no third-party runtime dependencies or bundled framework. Build it independently through the `c/` CMake project:
 
 ```powershell
 cd c
@@ -117,7 +117,8 @@ cmake --build build
 Generated executable:
 
 ```text
-c/build/Release/break_reminder_c.exe
+c/build/break_reminder_c.exe                 (MinGW)
+c/build/Release/break_reminder_c.exe         (Visual Studio)
 ```
 
 The same C release build used by GitHub Actions can be run from the repository root:
