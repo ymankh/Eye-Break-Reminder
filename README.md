@@ -1,6 +1,6 @@
 # Break Reminder
 
-Break Reminder is a small Windows desktop app that reminds you to take a 20 second screen break every 20 minutes. The main implementation lives in `dotnet/` and uses .NET 10, WinUI 3, and Windows App SDK. A small `c/` project is also included as a native C scaffold.
+Break Reminder is a small Windows desktop app that reminds you to take a 20 second screen break every 20 minutes. The main implementation lives in `dotnet/` and uses .NET 10, WinUI 3, and Windows App SDK. A small `c/` project is also included as a native C scaffold, along with an independent `cpp-winui/` variant that combines a C reminder core with a C++/WinUI 3 interface.
 
 ## Features
 
@@ -34,6 +34,12 @@ Break Reminder is a small Windows desktop app that reminds you to take a 20 seco
 │   ├── resource.h
 │   ├── break-reminder.rc
 │   └── app.ico
+├── cpp-winui/
+│   ├── core/
+│   ├── tests/
+│   ├── BreakReminderWinUI.vcxproj
+│   ├── MainWindow.xaml
+│   └── Build-Release.ps1
 └── .github/workflows/
     ├── release-installer.yml
     └── release-c.yml
@@ -45,6 +51,7 @@ Break Reminder is a small Windows desktop app that reminds you to take a 20 seco
 - .NET 10 SDK for building and running the .NET project.
 - CMake 3.21 or newer for the C scaffold.
 - A C compiler such as MSVC, Clang, or GCC for the C scaffold.
+- Visual Studio 2026 with C++ WinUI app development tools for `cpp-winui/`.
 
 ## Build the .NET app
 
@@ -119,6 +126,20 @@ The same C release build used by GitHub Actions can be run from the repository r
 ./scripts/Build-CRelease.ps1
 ```
 
+## Build the native WinUI 3 app
+
+The `cpp-winui/` project keeps its timer state machine in C and presents it through a native C++/WinUI 3 frontend with Fluent controls, theme support, and Mica.
+
+```powershell
+./cpp-winui/Build-Release.ps1
+```
+
+Generated executable:
+
+```text
+cpp-winui/artifacts/Release/x64/BreakReminderWinUI.exe
+```
+
 ## GitHub release workflow
 
 The repository includes two release workflows:
@@ -132,8 +153,8 @@ When a GitHub release is published, the workflow:
 - builds the WiX MSI installer,
 - builds a setup bootstrapper `.exe`,
 - configures the setup bootstrapper to download the .NET Desktop Runtime when missing and run the Windows App Runtime prerequisite installer,
-- uploads the MSI and setup `.exe` to the release assets,
-- uploads the MSI and setup `.exe` as workflow artifacts,
+- uploads the MSI and standalone setup `.exe` to the release assets,
+- uploads the complete framework-dependent .NET app folder, MSI, and setup `.exe` as workflow artifacts,
 - builds the C executable,
 - uploads the C executable to the release assets,
 - uploads the C executable as a workflow artifact.

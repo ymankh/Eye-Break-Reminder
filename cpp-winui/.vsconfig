@@ -1,0 +1,8 @@
+{
+  "version": "1.0",
+  "components": [
+    "Microsoft.VisualStudio.Workload.Universal",
+    "Microsoft.VisualStudio.ComponentGroup.WindowsAppDevelopment.VC",
+    "Microsoft.VisualStudio.ComponentGroup.UWP.VC"
+  ]
+}

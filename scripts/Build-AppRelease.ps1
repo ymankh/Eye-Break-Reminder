@@ -108,6 +108,7 @@ if (-not $setup) {
 if ($env:GITHUB_OUTPUT) {
     "app_exe_path=$($appExe.FullName)" >> $env:GITHUB_OUTPUT
     "app_exe_name=$($appExe.Name)" >> $env:GITHUB_OUTPUT
+    "app_publish_path=$publishDir" >> $env:GITHUB_OUTPUT
     "msi_path=$($msi.FullName)" >> $env:GITHUB_OUTPUT
     "msi_name=$($msi.Name)" >> $env:GITHUB_OUTPUT
     "setup_path=$($setup.FullName)" >> $env:GITHUB_OUTPUT
@@ -117,6 +118,7 @@ if ($env:GITHUB_OUTPUT) {
 [pscustomobject]@{
     AppExePath = $appExe.FullName
     AppExeName = $appExe.Name
+    AppPublishPath = $publishDir
     MsiPath = $msi.FullName
     MsiName = $msi.Name
     SetupPath = $setup.FullName

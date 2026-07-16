@@ -40,6 +40,12 @@ jobs:
         run: |
           ./scripts/Build-AppRelease.ps1 -InstallerVersion '${{ steps.version.outputs.installer_version }}'
 
+      - name: Upload complete .NET application workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-app-win-x64
+          path: ${{ steps.app_release.outputs.app_publish_path }}
+
       - name: Upload MSI workflow artifact
         uses: actions/upload-artifact@v4
         with:
